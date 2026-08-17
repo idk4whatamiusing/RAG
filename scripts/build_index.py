@@ -19,7 +19,7 @@ LANGS = ["as", "bn", "gu", "hi", "kn", "ml", "mr", "ne", "or", "pa", "sa", "ta",
 LANG_FILES = {"as": "asm", "bn": "ben", "gu": "guj", "hi": "hin", "kn": "kan", "ml": "mal",
               "mr": "mar", "ne": "nep", "or": "ori", "pa": "pan", "sa": "san", "ta": "tam",
               "te": "tel", "ur": "urd"}
-QUERY_CAP = {"hi": 50000}
+QUERY_CAP = {"hi": 778638}  # full file for hi; others stay default
 DEFAULT_CAP = 30000
 
 
@@ -39,18 +39,21 @@ def iter_rows(lang: str, split: str = "train", local: bool = False):
 def collect(lang: str, cap: int, strategy: str, split: str = "train", selected_only: bool = True, local: bool = False):
     chunks: list[dict] = []
     qcount = 0
+    seen: set[str] = set()
     for row in iter_rows(lang, split, local):
         sel = [s for s in row["passages"]["is_selected"]]
         texts = row["passages"]["Translated_passages"]
         if selected_only:
             for i, (s, t) in enumerate(zip(sel, texts)):
-                if s == 1 and t.strip():
+                if s == 1 and t.strip() and t not in seen:
+                    seen.add(t)
                     chunks.extend(chunk_passage(str(i), t, strategy, lang=lang,
                                                 qid=str(row["query_id"]), selected=1,
                                                 qtype=row.get("query_type", "")))
         else:
             for i, t in enumerate(texts):
-                if t.strip():
+                if t.strip() and t not in seen:
+                    seen.add(t)
                     chunks.extend(chunk_passage(str(i), t, strategy, lang=lang,
                                                 qid=str(row["query_id"]),
                                                 selected=int(sel[i]) if i < len(sel) else 0,
@@ -58,7 +61,7 @@ def collect(lang: str, cap: int, strategy: str, split: str = "train", selected_o
         qcount += 1
         if qcount >= cap:
             break
-        if len(chunks) >= 400_000:
+        if len(chunks) >= 600_000:
             break
     return chunks
 

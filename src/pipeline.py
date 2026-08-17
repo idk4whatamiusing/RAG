@@ -98,28 +98,33 @@ class GuardG2:
 class GuardG3:
     """Language detect -> route. fastText lid.176 if importable, else script heuristic."""
 
+    # fastText 176-lang labels we index; everything Indic-not-mapped -> "indic",
+    # everything else -> "eng_Latn" (falls back to largest partition).
+    CORPUS = {"as", "bn", "gu", "hi", "kn", "ml", "mr", "ne", "or", "pa", "sa", "ta", "te", "ur"}
+
     @staticmethod
     def detect(text: str) -> str:
         try:
-            import fasttext  # type: ignore
-            _m = _m.lazy if False else GuardG3._model()
-            lang, _ = _m.predict(text.replace("\n", " ")[:1000])
-            return lang.replace("__label__", "")
+            lang, _ = GuardG3._model().predict(text.replace("\n", " ")[:1000])
+            code = str(lang[0]).replace("__label__", "")
+            if code in GuardG3.CORPUS:
+                return code
+            return "indic" if _has_indic(text) else "eng_Latn"
         except Exception:
             return "indic" if _has_indic(text) else "eng_Latn"
 
-    _model = None
+    _lid = None
 
     @classmethod
     def _model(cls):
-        if cls._model is None:
+        if cls._lid is None:
             import fasttext
-            cls._model = fasttext.load_model(_lid_path())
-        return cls._model
+            cls._lid = fasttext.load_model(_lid_path())
+        return cls._lid
 
 
 def _lid_path() -> str:
-    return Path(os.environ.get("LID_MODEL", "models/lid.176.bin"))
+    return str(Path(os.environ.get("LID_MODEL", "models/lid.176.bin")))
 
 
 def _has_indic(text: str) -> bool:
