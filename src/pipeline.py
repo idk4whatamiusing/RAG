@@ -223,8 +223,8 @@ class Pipeline:
             return StructuredResponse(refused=True, reason="empty-retrieval", language=lang)
 
         top = hits[0]
-        if top.score < TAU_OFFTOPIC:
-            return StructuredResponse(refused=True, reason="off-topic", confidence=top.score,
+        if top.sim < TAU_OFFTOPIC:
+            return StructuredResponse(refused=True, reason="off-topic", confidence=top.sim,
                                       language=lang, citations=[_cit(top)])
 
         ans, conf = self._time("extract", lambda: _extract_answer(query, hits[:5]))

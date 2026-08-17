@@ -13,6 +13,7 @@ class Hit:
     text: str
     meta: dict
     score: float
+    sim: float = 0.0  # dense cosine similarity (for thresholds)
     selected: bool = False
 
 
@@ -26,6 +27,7 @@ def rrf_fuse(*rankings: list[tuple[int, float]], n: int = 20) -> list[tuple[int,
 
 def retrieve(index, query_vec, query_text: str, n: int = 20) -> list[Hit]:
     dense = index.search_dense(query_vec, k=50)
+    dense_sim = {doc: s for doc, s in dense}
     sparse = index.search_sparse(query_text, k=50)
     fused = rrf_fuse(dense, sparse, n=n)
     out = []
@@ -35,5 +37,5 @@ def retrieve(index, query_vec, query_text: str, n: int = 20) -> list[Hit]:
         if sel:
             score += SELECTED_BOOST
         out.append(Hit(doc=doc, lang=index.lang, text=index.texts[doc], meta=meta,
-                       score=score, selected=sel))
+                       score=score, sim=dense_sim.get(doc, 0.0), selected=sel))
     return out
