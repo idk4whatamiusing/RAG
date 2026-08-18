@@ -1,0 +1,12 @@
+numpy<2
+pyarrow
+onnxruntime
+faiss-cpu
+rank-bm25
+tokenizers
+huggingface_hub
+fasttext
+fastapi
+uvicorn[standard]
+websockets
+boto3
