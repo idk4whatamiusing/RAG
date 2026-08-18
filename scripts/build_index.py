@@ -40,7 +40,12 @@ def collect(lang: str, cap: int, strategy: str, split: str = "train", selected_o
     chunks: list[dict] = []
     qcount = 0
     seen: set[str] = set()
+    t_last = time.time()
     for row in iter_rows(lang, split, local):
+        if qcount and qcount % 50_000 == 0:
+            print(f"  collect: {qcount} queries, {len(chunks)} chunks, "
+                  f"{len(seen):,} unique, {(time.time()-t_last):.0f}s/50k", flush=True)
+            t_last = time.time()
         sel = [s for s in row["passages"]["is_selected"]]
         texts = row["passages"]["Translated_passages"]
         if selected_only:
@@ -93,12 +98,17 @@ def main():
         cap = QUERY_CAP.get(lang, DEFAULT_CAP)
         t0 = time.time()
         chunks = collect(lang, cap, args.strategy, local=args.local)
+        print(f"{lang}: collected {len(chunks)} chunks in {time.time()-t0:.1f}s", flush=True)
         if not chunks:
             print(f"{lang}: 0 chunks, skip")
             continue
+        t1 = time.time()
         ix = build_partition(lang, chunks, embedder)
+        print(f"{lang}: embedded {len(chunks)} chunks in {time.time()-t1:.1f}s", flush=True)
+        t2 = time.time()
         ix.save(out / lang)
-        print(f"{lang}: {len(chunks)} chunks in {time.time()-t0:.1f}s -> {out / lang}")
+        print(f"{lang}: saved in {time.time()-t2:.1f}s ({out / lang})", flush=True)
+        print(f"{lang}: {len(chunks)} chunks total {time.time()-t0:.1f}s")
     print("done")
 
 
