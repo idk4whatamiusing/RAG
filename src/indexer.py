@@ -30,7 +30,7 @@ class Index:
     def count(self) -> int:
         return len(self.texts)
 
-    def add(self, texts: list[str], meta: list[dict], vectors: np.ndarray):
+    def add(self, texts: list[str], meta: list[dict], vectors: np.ndarray, index_toks: bool = True):
         if not texts:
             return
         if self.index is None:
@@ -38,7 +38,8 @@ class Index:
         self.index.add(np.ascontiguousarray(vectors, dtype=np.float32))
         self.texts.extend(texts)
         self.meta.extend(meta)
-        self._toks.extend(_tokenize(t) for t in texts)
+        if index_toks:
+            self._toks.extend(_tokenize(t) for t in texts)
         self._bk = None
 
     def _bm(self) -> BM25Okapi:
@@ -82,11 +83,11 @@ class Index:
         return ix
 
 
-def build_partition(lang: str, chunks: list[dict], embedder: Embedder) -> Index:
+def build_partition(lang: str, chunks: list[dict], embedder: Embedder, batch: int = 25000) -> Index:
     t0 = time.time()
     ix = Index(lang, embedder)
-    if not chunks:
-        return ix
-    ix.add([c["text"] for c in chunks], [c["meta"] for c in chunks],
-           embedder.encode([c["text"] for c in chunks], batch=32))
+    for i in range(0, len(chunks), batch):
+        b = chunks[i:i + batch]
+        ix.add([c["text"] for c in b], [c["meta"] for c in b],
+               embedder.encode([c["text"] for c in b]), index_toks=False)
     return ix

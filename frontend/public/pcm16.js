@@ -2,8 +2,6 @@
 
 // capture: connect AudioWorkletNode to the same context whose sample rate is 16k
 // (AudioContext({sampleRate: 16000})) so no resampling is needed.
-let first = true;
-let offset = 0;
 let buf = new Int16Array(0);
 
 function push(frame: Float32Array) {

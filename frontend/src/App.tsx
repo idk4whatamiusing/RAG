@@ -15,6 +15,12 @@ type Resp = {
   stage_latencies?: Record<string, number>;
 };
 
+function toB64(u8: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+  return btoa(bin);
+}
+
 export default function App() {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -23,6 +29,7 @@ export default function App() {
   const ctxRef = useRef<AudioContext | null>(null);
   const micRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const workRef = useRef<AudioWorkletNode | null>(null);
+  const stoppingRef = useRef<{ ctx: AudioContext; ws: WebSocket } | null>(null);
 
   async function start() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -31,21 +38,38 @@ export default function App() {
     const src = ctx.createMediaStreamSource(stream);
     const work = new AudioWorkletNode(ctx, "pcm16");
     src.connect(work);
-    work.port.onmessage = (e) => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(e.data.data);
+    const ws = new WebSocket(WS_URL);
+    ws.onmessage = (e) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(e.data as string);
+      } catch {
+        return;
+      }
+      const t = msg.text ?? msg.committed_transcript ?? "";
+      if (msg.message_type === "partial_transcript" && t) setTranscript(t);
+      if (msg.message_type === "committed_transcript" || msg.message_type === "committed_transcript_with_timestamps") {
+        setTranscript(t);
+        const stopper = stoppingRef.current;
+        stoppingRef.current = null;
+        setListening(false);
+        if (stopper) {
+          try { stopper.ws.close(); } catch { /* noop */ }
+          setTimeout(() => { try { stopper.ctx.close(); } catch { /* noop */ } }, 0);
+        }
+        if (t) ask(t);
       }
     };
-    const ws = new WebSocket(WS_URL);
-    ws.binaryType = "arraybuffer";
-    ws.onmessage = (e) => {
-      const msg = typeof e.data === "string" ? JSON.parse(e.data) : null;
-      if (!msg) return;
-      const seg = msg.text_segments?.[0];
-      if (seg?.text) setTranscript((t) => (t ? t + " " : "") + seg.text.trim());
-      if (msg.is_final || msg.type === "transcript_done") {
-        setListening(false);
-        ask(seg?.text || "");
+    work.port.onmessage = (e) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            message_type: "input_audio_chunk",
+            audio_base_64: toB64(new Uint8Array(e.data.data)),
+            commit: false,
+            sample_rate: 16000,
+          })
+        );
       }
     };
     wsRef.current = ws;
@@ -58,10 +82,28 @@ export default function App() {
   function stop() {
     micRef.current?.disconnect();
     workRef.current?.disconnect();
-    ctxRef.current?.close();
-    wsRef.current?.close();
-    micRef.current = ctxRef.current = workRef.current = null;
-    wsRef.current = null;
+    const ctx = ctxRef.current!;
+    const ws = wsRef.current!;
+    micRef.current = workRef.current = null;
+    // flush trailing silence so the STT commits the utterance
+    const silence = new Uint8Array(1600 * 2);
+    let sent = 0;
+    const timer = setInterval(() => {
+      sent += 1;
+      const last = sent >= 24;
+      ws.send(
+        JSON.stringify({
+          message_type: "input_audio_chunk",
+          audio_base_64: toB64(silence),
+          commit: last,
+          sample_rate: 16000,
+        })
+      );
+      if (last) {
+        clearInterval(timer);
+        stoppingRef.current = { ctx, ws };
+      }
+    }, 60);
     setListening(false);
   }
 

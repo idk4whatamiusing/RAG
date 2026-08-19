@@ -13,6 +13,7 @@ import boto3
 
 from src.embedder import Embedder
 from src.pipeline import Corpus, Pipeline
+from src.sqlstore import SqlCorpus, rds_connection_factory
 
 BUCKET = os.environ.get("INDEX_BUCKET", "voice-rag-index")
 PREFIX = os.environ.get("INDEX_PREFIX", "index")
@@ -29,7 +30,9 @@ def _load():
         return
     t0 = time.perf_counter()
     _embedder = Embedder()
-    if _LOCAL.exists() and any(_LOCAL.iterdir()):
+    if os.environ.get("INDEX_MODE") == "rds":
+        _corpus = SqlCorpus(rds_connection_factory())
+    elif _LOCAL.exists() and any(_LOCAL.iterdir()):
         _corpus = Corpus(_LOCAL, _embedder)
     else:
         dest = Path(tempfile.mkdtemp(prefix="ragidx-"))

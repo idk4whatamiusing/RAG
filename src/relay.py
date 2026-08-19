@@ -9,9 +9,18 @@ UPSTREAM = os.environ.get(
     "SCRIBE_WS",
     "wss://api.elevenlabs.io/v1/speech-to-text/realtime",
 )
+QUERY = os.environ.get(
+    "SCRIBE_QUERY",
+    "model_id=scribe_v2_realtime&commit_strategy=manual&include_language_detection=true",
+)
 KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 
 app = FastAPI()
+
+
+def _upstream_url() -> str:
+    sep = "&" if "?" in UPSTREAM else "?"
+    return f"{UPSTREAM}{sep}{QUERY}"
 
 
 @app.websocket("/ws")
@@ -21,7 +30,7 @@ async def ws_proxy(client: WebSocket):
         await client.close(code=1011, reason="missing ELEVENLABS_API_KEY")
         return
     try:
-        async with websockets.connect(UPSTREAM, extra_headers={"xi-api-key": KEY},
+        async with websockets.connect(_upstream_url(), additional_headers={"xi-api-key": KEY},
                                       ping_interval=20, ping_timeout=20) as up:
             async def client_to_up():
                 while True:
