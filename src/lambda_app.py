@@ -53,6 +53,7 @@ def _load():
 
 @app.get("/health")
 async def health():
+    _load()
     return {"ok": True, "langs": list(_corpus.languages()) if _corpus else []}
 
 
