@@ -25,6 +25,8 @@ export default function App() {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [resp, setResp] = useState<Resp | null>(null);
+  const [status, setStatus] = useState("idle");
+  const [statusMsg, setStatusMsg] = useState("click ● to speak");
   const wsRef = useRef<WebSocket | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const micRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -35,14 +37,30 @@ export default function App() {
   const stoppingRef2 = useRef(false);
 
   async function start() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const ctx = new AudioContext({ sampleRate: 16000 });
-    await ctx.audioWorklet.addModule("/pcm16.js");
-    const src = ctx.createMediaStreamSource(stream);
-    const work = new AudioWorkletNode(ctx, "pcm16");
-    src.connect(work);
-    const ws = new WebSocket(WS_URL);
-    ws.onmessage = (e) => {
+    try {
+      setStatus("connecting");
+      setStatusMsg("requesting microphone…");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setStatusMsg("connecting to speech service…");
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      await ctx.audioWorklet.addModule("/pcm16.js");
+      const src = ctx.createMediaStreamSource(stream);
+      const work = new AudioWorkletNode(ctx, "pcm16");
+      src.connect(work);
+      const ws = new WebSocket(WS_URL);
+      ws.onclose = (e) => {
+        if (!stoppingRef2.current && !stoppingRef.current) {
+          setStatus("error");
+          setStatusMsg(`speech connection closed (${e.code}${e.reason ? ` ${e.reason}` : ""})`);
+        }
+      };
+      ws.onerror = () => {
+        if (!stoppingRef2.current && !stoppingRef.current) {
+          setStatus("error");
+          setStatusMsg("speech connection error — check console");
+        }
+      };
+      ws.onmessage = (e) => {
       let msg: any;
       try {
         msg = JSON.parse(e.data as string);
@@ -67,6 +85,8 @@ export default function App() {
           try { stopper.ws.close(); } catch { /* noop */ }
           setTimeout(() => { try { stopper.ctx.close(); } catch { /* noop */ } }, 0);
         }
+        setStatus("answered");
+        setStatusMsg("got your question");
         if (t) ask(t);
       }
     };
@@ -88,6 +108,8 @@ export default function App() {
     workRef.current = work;
     stoppingRef2.current = false;
     setListening(true);
+    setStatus("listening");
+    setStatusMsg("listening · speak now");
     lastPartialRef.current = 0;
     watchdogRef.current = setInterval(() => {
       if (stoppingRef2.current) return;
@@ -95,6 +117,10 @@ export default function App() {
         stop();
       }
     }, 250);
+    } catch (err) {
+      setStatus("error");
+      setStatusMsg(`could not start mic: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   function stop() {
@@ -142,9 +168,13 @@ export default function App() {
       const j = (await r.json()) as Resp;
       j.latency_ms = performance.now() - t0;
       setResp(j);
+      setStatus("answered");
+      setStatusMsg(`answer ready · ${(j.latency_ms).toFixed(0)}ms`);
       if (!j.refused && j.answer) speak(j.answer);
     } catch {
       setResp({ answer: "", confidence: 0, citations: [], language: "", refused: true, reason: "network-error", path: "" });
+      setStatus("error");
+      setStatusMsg("query failed — network error");
     }
   }
 
@@ -172,6 +202,7 @@ export default function App() {
         {listening ? "■ Stop" : "● Speak"}
       </button>
       {transcript && <p className="transcript">🎤 {transcript}</p>}
+      <p className={`status ${status}`}>{(status === "connecting" || status === "listening") ? "● " : status === "error" ? "⚠ " : "✓ "}{statusMsg}</p>
       {resp && (
         <section className="answer">
           <img className="frame fr-top" src="/assets/hhg/138-frame-1948755142-54-27257.svg" alt="" />

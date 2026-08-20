@@ -111,6 +111,25 @@ h1 {
   max-width: 100%;
 }
 
+.status {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--hhg-amber-2);
+  min-height: 1.5em;
+  &.error {
+    color: var(--hhg-amber);
+  }
+  &.answered {
+    color: var(--hhg-neon);
+  }
+  &.idle {
+    color: rgba(255, 255, 255, 0.55);
+  }
+}
+
 .answer {
   position: relative;
   width: 100%;
