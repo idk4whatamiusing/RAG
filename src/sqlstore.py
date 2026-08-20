@@ -103,9 +103,9 @@ class SqlCorpus:
         sparse = part.search_sparse(query_text, k=50)
 
         agg: dict[int, float] = {}
-        for rk in (dense, sparse):
+        for rk, w in ((dense, 1.0), (sparse, 0.3)):
             for rank, (doc, _s) in enumerate(rk):
-                agg[doc] = agg.get(doc, 0.0) + 1.0 / (RRF_K + rank)
+                agg[doc] = agg.get(doc, 0.0) + w * 1.0 / (RRF_K + rank)
         fused = sorted(agg.items(), key=lambda kv: -kv[1])[:n]
 
         rows = part.fetch([doc for doc, _ in fused])
