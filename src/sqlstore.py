@@ -37,10 +37,11 @@ class SqlPart:
 
     def _cur(self):
         try:
-            return self._conn.cursor()
+            with self._conn.cursor() as probe:
+                probe.execute("SELECT 1")
         except psycopg.OperationalError:
             self._conn = self._make_conn()
-            return self._conn.cursor()
+        return self._conn.cursor()
 
     @property
     def count(self) -> int:
