@@ -30,6 +30,9 @@ export default function App() {
   const micRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const workRef = useRef<AudioWorkletNode | null>(null);
   const stoppingRef = useRef<{ ctx: AudioContext; ws: WebSocket } | null>(null);
+  const lastPartialRef = useRef<number>(0);
+  const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stoppingRef2 = useRef(false);
 
   async function start() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -47,11 +50,18 @@ export default function App() {
         return;
       }
       const t = msg.text ?? msg.committed_transcript ?? "";
-      if (msg.message_type === "partial_transcript" && t) setTranscript(t);
+      if (msg.message_type === "partial_transcript" && t) {
+        setTranscript(t);
+        lastPartialRef.current = performance.now();
+      }
       if (msg.message_type === "committed_transcript" || msg.message_type === "committed_transcript_with_timestamps") {
         setTranscript(t);
         const stopper = stoppingRef.current;
         stoppingRef.current = null;
+        if (watchdogRef.current) {
+          clearInterval(watchdogRef.current);
+          watchdogRef.current = null;
+        }
         setListening(false);
         if (stopper) {
           try { stopper.ws.close(); } catch { /* noop */ }
@@ -76,10 +86,24 @@ export default function App() {
     ctxRef.current = ctx;
     micRef.current = src;
     workRef.current = work;
+    stoppingRef2.current = false;
     setListening(true);
+    lastPartialRef.current = 0;
+    watchdogRef.current = setInterval(() => {
+      if (stoppingRef2.current) return;
+      if (lastPartialRef.current > 0 && performance.now() - lastPartialRef.current > 1400) {
+        stop();
+      }
+    }, 250);
   }
 
   function stop() {
+    if (stoppingRef2.current) return;
+    stoppingRef2.current = true;
+    if (watchdogRef.current) {
+      clearInterval(watchdogRef.current);
+      watchdogRef.current = null;
+    }
     micRef.current?.disconnect();
     workRef.current?.disconnect();
     const ctx = ctxRef.current!;
