@@ -42,7 +42,10 @@ async def _relay(client: WebSocket, up, stats: dict):
         while True:
             msg = await up.recv()
             stats["down"] += len(msg)
-            await client.send_bytes(msg if isinstance(msg, bytes) else msg.encode())
+            if isinstance(msg, bytes):
+                await client.send_bytes(msg)
+            else:
+                await client.send_text(msg)
 
     done, pending = await asyncio.wait(
         [asyncio.create_task(client_to_up()), asyncio.create_task(up_to_client())],
