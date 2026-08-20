@@ -1,10 +1,10 @@
-"""Audio worklet for the voice input: raw PCM 16kHz Int16 -> main thread."""
+// Audio worklet for the voice input: raw PCM 16kHz Int16 -> main thread.
 
 // capture: connect AudioWorkletNode to the same context whose sample rate is 16k
 // (AudioContext({sampleRate: 16000})) so no resampling is needed.
 let buf = new Int16Array(0);
 
-function push(frame: Float32Array) {
+function push(frame) {
   const tmp = new Int16Array(buf.length + frame.length);
   tmp.set(buf);
   for (let i = 0; i < frame.length; i++) {
@@ -19,7 +19,7 @@ function push(frame: Float32Array) {
 }
 
 registerProcessor("pcm16", class extends AudioWorkletProcessor {
-  process(inputs: Float32Array[][]) {
+  process(inputs) {
     const ch = inputs[0]?.[0];
     if (ch && ch.length) push(ch);
     return true;
