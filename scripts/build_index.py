@@ -24,7 +24,8 @@ DEFAULT_CAP = 30000
 
 
 def iter_rows(lang: str, split: str = "train", local: bool = False):
-    fname = f"{split}/{LANG_FILES[lang]}{'train' if split == 'train' else 'val'}.parquet"
+    split_dir = "train" if split == "train" else "validation"
+    fname = f"{split_dir}/{LANG_FILES[lang]}{'train' if split == 'train' else 'val'}.parquet"
     if not local:
         from datasets import load_dataset  # lazy: not needed for --local
         ds = load_dataset("ai4bharat/MSMARCO-XI", data_files=fname, split="train", streaming=True)

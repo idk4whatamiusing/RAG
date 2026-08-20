@@ -6,6 +6,7 @@ import random
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
@@ -19,6 +20,7 @@ TAU_OFFTOPIC = float(os.environ.get("TAU_OFFTOPIC", "0.30"))
 TAU_GROUND = float(os.environ.get("TAU_GROUND", "0.35"))
 TAU_ANSWER = float(os.environ.get("TAU_ANSWER", "0.28"))
 STAGE_TIMEOUT = float(os.environ.get("STAGE_TIMEOUT", "2.0"))
+SYNTH_BUDGET_MS = float(os.environ.get("SYNTH_BUDGET_MS", "150"))  # groq cap off the critical path
 
 TOXIC_TERMS = ("kill you", "fuck", "bhenchod", "madarchod", "randi", "chutiya", "suar", "harami",
                "tumhe mar", "tera baap", "abe chaman", "spoiler", "shoot someone", "bomb", "katl")
@@ -197,6 +199,7 @@ class Pipeline:
         self.corpus = corpus
         self.embedder = embedder
         self.timings: dict[str, float] = {}
+        self._gq = ThreadPoolExecutor(max_workers=1)
 
     def _time(self, name: str, fn):
         t0 = time.perf_counter()
@@ -238,12 +241,13 @@ class Pipeline:
         resp.stage_latencies = dict(self.timings)
 
         if conf < TAU_ANSWER:
+            fut = self._gq.submit(lambda: _groq_answer(query, hits))
             try:
-                synth, grounded = self._time("groq", lambda: _groq_answer(query, hits))
+                synth, grounded = fut.result(timeout=SYNTH_BUDGET_MS / 1000)
                 if grounded and _grounded_check(synth, hits):
                     resp.answer, resp.path, resp.confidence = synth, "synthesis", max(conf, 0.4)
-                    resp.stage_latencies = dict(self.timings)
             except Exception:
+                fut.cancel()
                 if conf <= 0.0:
                     return StructuredResponse(refused=True, reason="not-in-knowledge-base",
                                               language=lang, stage_latencies=dict(self.timings))

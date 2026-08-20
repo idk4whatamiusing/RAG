@@ -22,8 +22,11 @@ def rds_connection_factory(region: str = REGION, db: str = DB) -> Callable[[], p
         host = rds.describe_db_instances(DBInstanceIdentifier=db)["DBInstances"][0]["Endpoint"]["Address"]
         # ponytail: force IPv4 — NAT64 AAAA (64:ff9b::/96) stalls long streams from NATed hosts
         host = socket.getaddrinfo(host, 5432, socket.AF_INET)[0][4][0]
-        return psycopg.connect(host=host, port=5432, user="postgres", password=pw,
+        conn = psycopg.connect(host=host, port=5432, user="postgres", password=pw,
                                dbname="postgres", connect_timeout=30, autocommit=True)
+        with conn.cursor() as cur:
+            cur.execute("SET hnsw.ef_search = 100")
+        return conn
     return _connect
 
 

@@ -68,7 +68,10 @@ class Index:
         with open(path / "texts.pkl", "wb") as f:
             pickle.dump(self.texts, f)
         pd.DataFrame(self.meta).to_parquet(path / "meta.parquet", index=False)
-        (path / "lang.json").write_text(json.dumps({"lang": self.lang, "count": self.count}))
+        (path / "lang.json").write_text(json.dumps({
+            "lang": self.lang, "count": self.count,
+            "strategy": (self.meta[0].get("strategy") if self.meta else None),
+            "build_ts": int(time.time())}))
 
     @classmethod
     def load(cls, path: Path, embedder: Embedder):

@@ -63,7 +63,7 @@ def chunk_passage(pid: str, text: str, strategy: str,
             "strategy": strategy,
             "meta": {
                 "lang": lang, "qid": qid, "passage_idx": pid, "chunk_id": i,
-                "selected": int(selected), "query_type": qtype,
+                "selected": int(selected), "query_type": qtype, "strategy": strategy,
             },
         })
     return out
