@@ -1,0 +1,56 @@
+@font-face {
+  font-family: "Imbue";
+  src: url("/fonts/imbue-latin-wght.woff2") format("woff2");
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Victor Mono";
+  src: url("/fonts/victormono-latin-wght.woff2") format("woff2");
+  font-weight: 100 700;
+  font-display: swap;
+}
+
+:root {
+  --hhg-green: #0b6839;
+  --hhg-green-2: #0c703c;
+  --hhg-green-3: #0e7842;
+  --hhg-green-4: #348a4b;
+  --hhg-neon: #12c660;
+  --hhg-yellow: #fee101;
+  --hhg-yellow-2: #fee131;
+  --hhg-yellow-3: #f9dc01;
+  --hhg-yellow-4: #fef200;
+  --hhg-amber: #ffbb00;
+  --hhg-amber-2: #ffdf80;
+  --hhg-white: #ffffff;
+  --hhg-black: #000000;
+
+  --font-display: "Imbue", "Victor Mono", system-ui, sans-serif;
+  --font-mono: "Victor Mono", ui-monospace, monospace;
+
+  font: 18px/1.5 var(--font-mono);
+  color-scheme: light;
+  color: var(--hhg-white);
+  background: var(--hhg-green);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 28px,
+      rgba(255, 255, 255, 0.02) 28px 30px
+    ),
+    linear-gradient(160deg, var(--hhg-green-2), var(--hhg-green) 55%);
+  min-height: 100svh;
+}
+
+#root {
+  min-height: 100svh;
+}

@@ -160,14 +160,21 @@ export default function App() {
 
   return (
     <main className="app">
-      <h1>वॉइस RAG · Voice RAG</h1>
-      <p className="sub">HH Goa 2026 · MSMARCO-XI · say a question in any Indic language</p>
+      <div className="badges">
+        <img className="goa" src="/assets/hhg/goa_hindi.svg" alt="गोवा" />
+        <img className="clock" src="/assets/hhg/2-47.svg" alt="2:47 pm Studio" />
+      </div>
+      <h1>
+        वॉइस <span>RAG</span>
+      </h1>
+      <p className="sub">HH Goa 2026 · MSMARCO-XI · ask in any Indic language</p>
       <button className={listening ? "mic on" : "mic"} onClick={listening ? stop : start}>
         {listening ? "■ Stop" : "● Speak"}
       </button>
       {transcript && <p className="transcript">🎤 {transcript}</p>}
       {resp && (
         <section className="answer">
+          <img className="frame fr-top" src="/assets/hhg/138-frame-1948755142-54-27257.svg" alt="" />
           {resp.refused ? (
             <p className="refused">{resp.reason}</p>
           ) : (
@@ -186,8 +193,10 @@ export default function App() {
               )}
             </>
           )}
+          <img className="frame fr-bottom" src="/assets/hhg/138-frame-1948755142-54-27257.svg" alt="" />
         </section>
       )}
+      <p className="foot">हैलो गोवा · hello goa · हिंदी · english · اردو · বাংলা</p>
     </main>
   );
 }
