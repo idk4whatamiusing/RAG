@@ -260,7 +260,8 @@ class Pipeline:
 
 def _cit(h: Hit) -> dict:
     return {"lang": h.lang, "qid": h.meta.get("qid"), "passage_idx": h.meta.get("passage_idx"),
-            "selected": int(h.meta.get("selected", 0)), "chunk_id": h.meta.get("chunk_id")}
+            "selected": int(h.meta.get("selected", 0)), "chunk_id": h.meta.get("chunk_id"),
+            "snippet": (h.text[:240] + ("…" if len(h.text) > 240 else ""))}
 
 
 def _grounded_check(text: str, hits: list[Hit], tau: float = TAU_GROUND) -> bool:
