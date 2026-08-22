@@ -1,29 +1,39 @@
-# Demo script — वॉइस RAG (HH Goa 2026)
+# Demo script — निशा · वॉइस RAG (HH Goa 2026)
 
-Live URL: https://15.206.175.100.sslip.io — deploy via SSM (ssh from CGNAT is unreliable).
+Live URL: https://15.206.175.100.sslip.io — deploy via SSM (ssh unreliable from CGNAT).
+
+Persona: **निशा · Goa desk** — ask in any Indic language, answer spoken back (Sarvam AI
+Indian voices when ElevenLabs is exhausted, Edge as the free umbrella). The Goa brain knows
+Goa; the main brain knows the MSMARCO-XI corpus; the bench brain can talk about itself.
 
 ## 60-second flow
 
-1. **Open** — land on the page. Green + yellow = HH Goa. Say nothing yet.
-2. **Ask in Hindi (voice):** "टेलीफोन का आविष्कार किसने किया?"
-   - Watch: live language badge flips to हिन्दी mid-speech; waveform moves; transcript appears word-by-word.
-3. **Answer moment:** the assistant SPEAKS back (Edge neural hi-in voice). Watch the voice→voice number — speech-end to first audio, usually ~400-700ms.
-   - This is the headline metric. Say it out loud: "it started answering in under half a second, before I finished leaning back."
-4. **Barge-in:** while it's still speaking, talk over it — "नहीं नहीं, कौन सा साल था?" — it cuts instantly and listens. Full duplex.
-5. **Language switch:** "சென்னை எந்த மாநிலத்தின் தலைநகரம்?" (Tamil). Badge flips, voice switches to a Tamil voice.
-6. **Guardrail:** "hello goa how are you?" → clean refusal (not-in-knowledge-base). Shows the agent refuses instead of hallucinating.
-7. **Chips fallback:** if the stage mic is noisy, tap the हिन्दी chip — same flow, keyboard-only.
-8. **Receipts:** footer "evals →" opens the 13-lang × 4-strategy chunking table + P50/P70/P100 bench on the live pgvector corpus.
+1. **Open the page.** Greeting: "निशा बोलत नाही? बोला". Chips row = the fallback insurance.
+2. **Goa brain (the soul):** tap the `गोवा brain` selector, then ask out loud:
+   "गोवा का सबसे पुराना चर्च कौन सा है?"
+   - Answer comes from a hand-curated Goa corpus, cited, with the exact sentence highlighted.
+3. **Konkani moment:** tap `कोंकणी · कसो आसा?` — the answer explains the phrase, in Konkani text via the Goa brain. Nobody else has Konkani.
+4. **Cross-lingual flex (main brain):** tap `हिन्दी → தமிழ்` — a Hindi question answered in Tamil.
+   Watch the "answering in தமிழ்" badge + the Tamil voice (Sarvam ta-IN). Language badge flips live while you speak.
+5. **Barge-in:** while it's speaking, talk over it — it cuts and re-listens. Full duplex.
+6. **Guardrail:** "hello goa how are you?" → clean refusal, and the trace shows the math
+   (`answer-confidence = 0.0 < 0.28 → not-in-knowledge-base`).
+7. **Bench it now:** the `⚡ /bench` — actually, the chips row hosts it? No: bench is a server
+   endpoint behind the scenes; stage rings + HUD above the answer show lid/embed/retrieve/extract
+   live, and the voice→voice number shows speech-end → first audio (~400-700ms).
+8. **Receipts:** footer `evals →` opens the 13-lang × 4-strategy chunking table + P50/P70/P100.
+   Ask the bench brain "what is the tamil recall?" (docs brain) — it answers from its own eval doc.
+9. **Scan me:** QR → the live app on a judge's phone.
+
+## Voice chain (no-code demo line)
+
+`X-TTS-Source` header shows the live tier: eleven → sarvam → edge. The ElevenLabs account is
+burned (402) so Sarvam AI bulbul:v3 (shubh) is the voice today — an Indian model speaking
+Indian answers. Top up ElevenLabs anytime → it silently upgrades.
 
 ## Tips
 
-- Use headphones for barge-in (browser AEC removes speaker bleed, but headphones are bulletproof).
-- If mic permission was denied earlier, the chips still demo everything.
-- Keep the voice→voice number visible (yellow bar) — it's the flex.
-- Repeat queries hit the /tts LRU cache (no credits, instant).
-
-## Failover notes
-
-- TTS: ElevenLabs is primary (needs credits — currently account is 402 out-of-credit), falls back to free Edge neural voices automatically. No demo-path change needed.
-- If the WS dies on stage: chips still work (pure HTTP).
-- Queries answered from `docs/requirements.md` R3 ≤200ms warm path.
+- Headphones for barge-in (browser AEC handles speaker bleed; headphones are bulletproof).
+- Warm the box first: hit /health once after any deploy, then /bench once (first call is cold).
+- Repeat queries hit the LRU /tts cache — instant, zero credits.
+- If the stage mic dies: all chips are pure HTTP.

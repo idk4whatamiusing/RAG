@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import time
 import urllib.error
 import urllib.request
@@ -53,6 +54,8 @@ class StructuredResponse:
     reason: str = ""
     path: str = "extractive"
     stage_latencies: dict = field(default_factory=dict)
+    trace: dict = field(default_factory=dict)      # GOA-17 L4: think-aloud guard math
+    follow_up: bool = False                          # GOA-17 L5: rewrite applied to a follow-up
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -151,11 +154,12 @@ class Corpus:
         return retrieve(best, query_vec, query_text, n=n)
 
 
-def _extract_answer(query: str, hits: list[Hit]) -> tuple[str, float]:
+def _extract_answer(query: str, hits: list[Hit], embed_one=None) -> tuple[str, float, int | None, str]:
+    """Return (answer, score, hit_index, exact_sentence) — sentence-level attribution (L2)."""
     import re
     q_toks = set(re.findall(r"\w+", query.lower()))
-    best, best_score = "", 0.0
-    for h in hits[:5]:
+    best, best_score, best_hit, best_sent = "", 0.0, None, ""
+    for hi, h in enumerate(hits[:5]):
         for s in re.split(r"(?<=[.!?।॥…])", h.text):
             s = s.strip()
             if len(s) < 12 or len(s) > 220:
@@ -163,8 +167,50 @@ def _extract_answer(query: str, hits: list[Hit]) -> tuple[str, float]:
             overlap = len(q_toks & set(re.findall(r"\w+", s.lower())))
             score = overlap / max(1, len(q_toks)) - 0.05 * len(s) / 220
             if score > best_score:
-                best, best_score = s, score
-    return best, best_score
+                best, best_score, best_hit, best_sent = s, score, hi, s
+    if best_score <= 0.0 and embed_one is not None:
+        # GOA-17 L1: cross-lingual fallback — no script-level token overlap
+        # (Hindi query vs Tamil passages), so match sentence embeddings instead.
+        cands = []
+        for hi, h in enumerate(hits[:3]):
+            for s in re.split(r"(?<=[.!?।॥…])", h.text):
+                s = s.strip()
+                if 12 <= len(s) <= 220:
+                    cands.append((hi, s))
+        if cands:
+            qv = embed_one(query)
+            qv = qv / (np.linalg.norm(qv) + 1e-9)
+            best_e, best_score_e = None, 0.0
+            for hi, s in cands:
+                sv = embed_one(s)
+                sv = sv / (np.linalg.norm(sv) + 1e-9)
+                sim = float(qv @ sv)
+                if sim > best_score_e:
+                    best_score_e, best_e = sim, (hi, s)
+            if best_e is not None and best_score_e >= 0.32:
+                best, best_score, best_hit, best_sent = best_e[1], best_score_e, best_e[0], best_e[1]
+    return best, best_score, best_hit, best_sent
+
+
+_FOLLOWUP_RE = re.compile(
+    r"^(और|फिर|तो|वह|वो|उस|यह|इस|वे|औ|क्या हुआ|उसका|उसकी|उनका|उनकी|उन्होंने|and|what about|"
+    r"how about|who|which|where|what|when|why|his|her|its|it|he|she|they|him|रहा|कब|कौन)\b",
+    re.IGNORECASE,
+)
+
+
+def _rewrite_followup(query: str, history: list[dict] | None) -> tuple[str, bool]:
+    """GOA-17 L5: deterministic follow-up rewrite (no LLM)."""
+    if not history:
+        return query, False
+    last = history[-1]
+    ctx = " ".join(str(x).strip() for x in (last.get("query", ""), last.get("answer", "")) if x)
+    ql = query.strip()
+    if not ctx or len(ctx) > 700:
+        return query, False
+    if len(ql) < 25 or _FOLLOWUP_RE.match(ql):
+        return f"{ql} — {ctx[:300]}", True
+    return query, False
 
 
 def _groq_answer(query: str, hits: list[Hit]) -> tuple[str, bool]:
@@ -207,36 +253,57 @@ class Pipeline:
         self.timings[name] = (time.perf_counter() - t0) * 1000
         return out
 
-    def run(self, query: str, lang: str | None = None) -> StructuredResponse:
+    def run(self, query: str, lang: str | None = None,
+            history: list[dict] | None = None) -> StructuredResponse:
         self.timings = {}
         resp = StructuredResponse(language=lang or "")
 
         if not query.strip():
-            return StructuredResponse(refused=True, reason="no-speech", language=lang or "")
+            return StructuredResponse(refused=True, reason="no-speech", language=lang or "",
+                                      trace={"gate": "no-speech", "value": 0, "threshold": "n/a"})
 
         if lang is None:
             lang = self._time("g3_lid", lambda: GuardG3.detect(query))
             resp.language = lang
         if lang not in self.corpus.parts and lang not in ("indic", "eng_Latn"):
             return StructuredResponse(refused=True, reason=f"language-not-supported: {lang}",
-                                      language=lang)
+                                      language=lang,
+                                      trace={"gate": "language-not-supported", "value": lang,
+                                             "threshold": "corpus languages"})
 
         toxic, why = GuardG2.check(query)
         if toxic:
-            return StructuredResponse(refused=True, reason=why, language=lang)
+            return StructuredResponse(refused=True, reason=why, language=lang,
+                                      trace={"gate": "toxic", "value": why,
+                                             "threshold": "blocklist"})
 
-        vec = self._time("embed", lambda: self.embedder.encode_one(query))
-        hits = self._time("retrieve", lambda: self.corpus.retrieve(vec, query, lang))
+        q, follow_up = _rewrite_followup(query, history)
+        resp.follow_up = follow_up
+
+        vec = self._time("embed", lambda: self.embedder.encode_one(q if follow_up else query))
+        lookup = q if follow_up else query
+        hits = self._time("retrieve", lambda: self.corpus.retrieve(vec, lookup, lang))
         if not hits:
-            return StructuredResponse(refused=True, reason="empty-retrieval", language=lang)
+            return StructuredResponse(refused=True, reason="empty-retrieval", language=lang,
+                                      trace={"gate": "empty-retrieval", "value": 0,
+                                             "threshold": "n/a"},
+                                      follow_up=follow_up)
 
         top = hits[0]
         if top.sim < TAU_OFFTOPIC:
             return StructuredResponse(refused=True, reason="off-topic", confidence=top.sim,
-                                      language=lang, citations=[_cit(top)])
+                                      language=lang, citations=[_cit(top)],
+                                      trace={"gate": "off-topic", "value": round(top.sim, 3),
+                                             "threshold": TAU_OFFTOPIC},
+                                      follow_up=follow_up)
 
-        ans, conf = self._time("extract", lambda: _extract_answer(query, hits[:5]))
-        resp.answer, resp.confidence, resp.citations = ans, conf, [_cit(h) for h in hits[:3]]
+        ans, conf, src_idx, sentence = self._time(
+            "extract", lambda: _extract_answer(query, hits[:5],
+                                               embed_one=self.embedder.encode_one))
+        cites = [_cit(h) for h in hits[:3]]
+        if sentence and src_idx is not None and src_idx < len(cites):
+            cites[src_idx]["sentence"] = sentence
+        resp.answer, resp.confidence, resp.citations = ans, conf, cites
         resp.path = "extractive"
         resp.stage_latencies = dict(self.timings)
 
@@ -250,9 +317,16 @@ class Pipeline:
                 fut.cancel()
                 if conf <= 0.0:
                     return StructuredResponse(refused=True, reason="not-in-knowledge-base",
-                                              language=lang, stage_latencies=dict(self.timings))
+                                              language=lang, follow_up=follow_up,
+                                              trace={"gate": "answer-confidence",
+                                                     "value": round(conf, 3),
+                                                     "threshold": TAU_ANSWER},
+                                              stage_latencies=dict(self.timings))
         if not resp.answer:
             return StructuredResponse(refused=True, reason="not-in-knowledge-base", language=lang,
+                                      follow_up=follow_up,
+                                      trace={"gate": "answer-confidence", "value": round(conf, 3),
+                                             "threshold": TAU_ANSWER},
                                       stage_latencies=dict(self.timings))
         resp.stage_latencies = dict(self.timings)
         return resp
