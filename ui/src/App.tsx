@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import EvalsPage from "./EvalsPage";
-import { QrModal, StageRings, BrainSelector, LangSelector, TraceBox, type StageInfo } from "./components";
+import { QrModal, StageRings, BrainSelector, LangSelector, TraceBox, BenchBox, type StageInfo, type BenchResult } from "./components";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "/ws";
 
@@ -25,8 +25,14 @@ const CHIPS: { label: string; q: string; kb?: string; lang?: string }[] = [
   { label: "🍉 गोवा चर्च", q: "गोवा का सबसे पुराना चर्च कौन सा है?", kb: "goa" },
   { label: "कोंकणी · कसो आसा?", q: "कसो आसा म्हणजे काय?", kb: "goa" },
   { label: "हिन्दी → தமிழ்", q: "टेलीफोन का आविष्कार किसने किया?", lang: "ta" },
-  { label: "தமிழ் தலைநகரம்", q: "சென்னை எந்த மாநிலத்தின் தலைநகரம்?" },
+  { label: "guard: मुझे मारना है", q: "मुझे तुम्हें मारना है" },
   { label: "smalltalk", q: "hello goa how are you?" },
+];
+
+const INTERVIEW_Q = [
+  "तुम्हारा नाम क्या है?",
+  "तुम कौन सी भाषा बोलते हो?",
+  "गोवा की कोई एक जगह मन में आती है?",
 ];
 
 const BADGE_LANGS: Record<string, string> = {
@@ -67,6 +73,14 @@ export default function App() {
   const [kb, setKb] = useState("main");
   const [qrOpen, setQrOpen] = useState(false);
   const [kIdx, setKIdx] = useState(0);
+  const [bench, setBench] = useState<BenchResult | null>(null);
+  const [benchBusy, setBenchBusy] = useState(false);
+  const [memText, setMemText] = useState("");
+  const [memMsg, setMemMsg] = useState("");
+  const [lastMem, setLastMem] = useState<{ qid: string; text: string } | null>(null);
+  const [ledger, setLedger] = useState({ q: 0, langs: {} as Record<string, number>, cites: 0, refused: 0, remembered: 0, forgotten: 0 });
+  const [race, setRace] = useState<number[] | null>(null);
+  
 
   const ctxRef = useRef<AudioContext | null>(null);
   const workRef = useRef<AudioWorkletNode | null>(null);
@@ -89,6 +103,7 @@ export default function App() {
   const karaokeMsRef = useRef(0);
   const rafKRef = useRef(0);
   const spokenLangRef = useRef("");
+  const interviewRef = useRef<{ step: number; answers: string[] } | null>(null);
 
   const setModeBoth = useCallback((m: Mode) => {
     modeRef.current = m;
@@ -245,10 +260,58 @@ export default function App() {
       spokenLangRef.current = "";
       tCommitRef.current = performance.now();
       closeWs();
+      if (interviewRef.current) {
+        setStatusMsg("got it · …");
+        void handleInterview(t);
+        return;
+      }
       setModeBoth("thinking");
       setStatusMsg("got your question · thinking…");
       if (t) ask(t);
     }
+  }
+
+  /* N2: inverted interview — निशा asks, the human answers */
+  async function interviewStart() {
+    stopPlayback();
+    
+    interviewRef.current = { step: 0, answers: [] };
+    setResp(null);
+    setStatusMsg("निशा पूछती है…");
+    await startInterviewStep(0);
+  }
+
+  async function startInterviewStep(step: number) {
+    interviewRef.current = { step, answers: interviewRef.current?.answers ?? [] };
+    
+    const q = INTERVIEW_Q[step];
+    if (!q) {
+      const a = interviewRef.current?.answers ?? [];
+      const name = a[0] || "मित्र";
+      const lang = a[1] || "कुछ भी";
+      const place = a[2] || "गोवा";
+      const summary = `देव बरे करूं ${name}. आप ${lang} बोलते हैं और ${place} आपको पसंद है.`;
+      interviewRef.current = null;
+      
+      setStatusMsg(summary);
+      await speak(summary, "hi");
+      afterAnswer();
+      return;
+    }
+    setStatusMsg(`सवाल ${step + 1}: ${q}`);
+    await speak(q, "hi");
+    if (interviewRef.current) {
+      start().catch(() => setStatusMsg("tap ● to speak"));
+    }
+  }
+
+  async function handleInterview(t: string) {
+    const iv = interviewRef.current;
+    if (!iv) return;
+    const answers = [...iv.answers, t];
+    interviewRef.current = { step: iv.step + 1, answers };
+    
+    await startInterviewStep(iv.step + 1);
   }
 
   const closeWs = () => {
@@ -355,6 +418,13 @@ export default function App() {
       const j = (await r.json()) as Resp;
       j.latency_ms = performance.now() - t0;
       setResp(j);
+      setLedger((l) => ({
+        ...l,
+        q: l.q + 1,
+        langs: { ...l.langs, [j.language]: (l.langs[j.language] || 0) + 1 },
+        cites: l.cites + (j.citations?.length || 0),
+        refused: l.refused + (j.refused ? 1 : 0),
+      }));
       if (lang) spokenLangRef.current = j.language;
       if (!j.refused && j.answer) {
         prevTurnRef.current = { query: text, answer: j.answer };
@@ -486,6 +556,84 @@ export default function App() {
     }
   }
 
+  /* ---------- GOA-18: live memory, bench, race, ledger, report ---------- */
+  async function runBench() {
+    setBenchBusy(true);
+    try {
+      const r = await fetch("/bench", { method: "POST" });
+      setBench((await r.json()) as BenchResult);
+    } catch {
+      /* keep old */
+    }
+    setBenchBusy(false);
+  }
+
+  async function tellNisha() {
+    const t = memText.trim();
+    if (!t) return;
+    setMemMsg("याद रख रही हूँ…");
+    try {
+      const r = await fetch("/remember", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: t, kb: kb === "goa" || kb === "main" ? "goa" : kb }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setLastMem({ qid: j.qid, text: t });
+        setMemMsg(`याद रखा · ${j.qid} — अब इसके बारे में पूछो! (phone भी याद करेगी — scan me)`);
+        setLedger((l) => ({ ...l, remembered: l.remembered + 1 }));
+        chime();
+        setMemText("");
+      } else {
+        setMemMsg(j.error || "remember failed");
+      }
+    } catch {
+      setMemMsg("remember failed");
+    }
+  }
+
+  async function forgetMem() {
+    if (!lastMem) return;
+    try {
+      const r = await fetch("/forget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qid: lastMem.qid }),
+      });
+      const j = await r.json();
+      setMemMsg(j.ok ? `भूल गई · ${lastMem.qid}` : "forget failed");
+      if (j.ok) {
+        setLedger((l) => ({ ...l, forgotten: l.forgotten + 1 }));
+        setLastMem(null);
+      }
+      chime();
+    } catch {
+      /* noop */
+    }
+  }
+
+  async function raceIt() {
+    const q = "टेलीफोन का आविष्कार किसने किया?";
+    setRace(null);
+    const t1 = performance.now();
+    await fetch("/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: q }) });
+    const m1 = performance.now() - t1;
+    const t2 = performance.now();
+    await fetch("/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: q }) });
+    const m2 = performance.now() - t2;
+    setRace([m1, m2]);
+  }
+
+  function reportCard() {
+    const l = ledger;
+    const langsTxt = Object.keys(l.langs).map((k) => BADGE_LANGS[k] || k).join(", ") || "—";
+    const txt = `इस सेशन में ${l.q} सवाल · ${Object.keys(l.langs).length} भाषाएँ · ${l.cites} स्रोत · ${l.refused} refuse · ${l.remembered} याद · ${l.forgotten} भूल. भाषाएँ: ${langsTxt}.`;
+    setStatusMsg(txt);
+    chime();
+    void speak(txt, "hi").then(() => listenLater());
+  }
+
   function chip(c: { q: string; kb?: string; lang?: string }) {
     closeWs();
     stopPlayback();
@@ -567,9 +715,57 @@ export default function App() {
             {c.label}
           </button>
         ))}
+        <button className="chip" onClick={interviewStart}>
+          🎤 निशा पूछती है
+        </button>
+        <button className="chip" onClick={raceIt}>
+          🏁 race
+        </button>
+        <button className="chip" onClick={reportCard}>
+          🧾 report
+        </button>
         <button className="chip" onClick={() => setQrOpen(true)}>
           📱 scan me
         </button>
+      </div>
+
+      <div className="rememberbox">
+        <input
+          value={memText}
+          placeholder="निशा याद रखो — एक तथ्य…"
+          onChange={(e) => setMemText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") tellNisha();
+          }}
+        />
+        <button className="chip" onClick={tellNisha}>याद रखो</button>
+        {lastMem && (
+          <button className="chip" onClick={forgetMem}>🧹 भूल जाओ</button>
+        )}
+      </div>
+      {(memMsg || lastMem) && (
+        <p className="memnote">
+          {memMsg}
+          {lastMem ? " · memory is live everywhere — teach here, ask on the phone" : ""}
+        </p>
+      )}
+
+      <BenchBox bench={bench} busy={benchBusy} onRun={runBench} />
+
+      {race && (
+        <div className="racebox">
+          <div className="racetile">🖥 laptop <b>{race[0].toFixed(0)}ms</b></div>
+          <div className="racetile">📱 phone <b>{race[1].toFixed(0)}ms</b></div>
+        </div>
+      )}
+
+      <div className="ledger">
+        <span>सवाल <b>{ledger.q}</b></span>
+        <span>भाषाएँ <b>{Object.keys(ledger.langs).length}</b></span>
+        <span>स्रोत <b>{ledger.cites}</b></span>
+        <span>refused <b>{ledger.refused}</b></span>
+        <span>याद <b>{ledger.remembered}</b></span>
+        <span>भूल <b>{ledger.forgotten}</b></span>
       </div>
 
       {stageInfo.length > 0 && <StageRings stages={stageInfo} running={mode === "speaking"} />}

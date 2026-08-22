@@ -593,3 +593,97 @@ h1 {
   .hud { height: 14px; }
   .ring { min-width: 40px; }
 }
+
+.benchbox {
+  margin: 10px auto;
+  max-width: 480px;
+  text-align: left;
+}
+
+.benchrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.benchlab {
+  width: 34px;
+  font-size: 0.66rem;
+  color: var(--hhg-amber-2);
+}
+
+.benchtrk {
+  flex: 1;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.benchfill {
+  height: 100%;
+  line-height: 16px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #000;
+  padding-left: 6px;
+  white-space: nowrap;
+}
+
+@keyframes hhg-grow {
+  from { width: 0 !important; }
+}
+
+.ledger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  justify-content: center;
+  margin: 8px auto;
+  font-size: 0.66rem;
+  color: var(--hhg-amber-2);
+}
+
+.ledger b {
+  color: var(--hhg-yellow);
+}
+
+.rememberbox {
+  margin: 10px auto;
+  max-width: 520px;
+  display: flex;
+  gap: 6px;
+}
+
+.rememberbox input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 5px 8px;
+  border: 1px solid var(--hhg-amber-2);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--hhg-white);
+}
+
+.memnote {
+  font-size: 0.62rem;
+  color: var(--hhg-amber);
+  margin: 2px auto 8px;
+}
+
+.racebox {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 8px auto;
+  font-size: 0.7rem;
+}
+
+.racetile {
+  border: 1px solid var(--hhg-amber-2);
+  border-radius: 4px;
+  padding: 4px 10px;
+  min-width: 150px;
+}

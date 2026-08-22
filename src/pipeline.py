@@ -24,7 +24,8 @@ STAGE_TIMEOUT = float(os.environ.get("STAGE_TIMEOUT", "2.0"))
 SYNTH_BUDGET_MS = float(os.environ.get("SYNTH_BUDGET_MS", "150"))  # groq cap off the critical path
 
 TOXIC_TERMS = ("kill you", "fuck", "bhenchod", "madarchod", "randi", "chutiya", "suar", "harami",
-               "tumhe mar", "tera baap", "abe chaman", "spoiler", "shoot someone", "bomb", "katl")
+               "tumhe mar", "tera baap", "abe chaman", "spoiler", "shoot someone", "bomb", "katl",
+               "मुझे मार", "मारना है", "मार दो", "हत्या कर", "बंदूक", "उड़ा दूंगा", "गोली")
 
 
 @dataclass
@@ -166,6 +167,8 @@ def _extract_answer(query: str, hits: list[Hit], embed_one=None) -> tuple[str, f
                 continue
             overlap = len(q_toks & set(re.findall(r"\w+", s.lower())))
             score = overlap / max(1, len(q_toks)) - 0.05 * len(s) / 220
+            if h.meta.get("remembered"):  # GOA-18 N1: taught facts speak first
+                score += 0.15
             if score > best_score:
                 best, best_score, best_hit, best_sent = s, score, hi, s
     if best_score <= 0.0 and embed_one is not None:

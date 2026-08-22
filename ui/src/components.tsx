@@ -78,3 +78,44 @@ export function TraceBox({ trace }: { trace: Record<string, unknown> }) {
     </pre>
   );
 }
+
+export type BenchResult = { n: number; P50: number; P70: number; P100: number; mean: number };
+
+export function BenchBox({ bench, busy, onRun }: { bench: BenchResult | null; busy: boolean; onRun: () => void }) {
+  const bars: { label: string; v: number; color: string }[] = bench
+    ? [
+        { label: "P50", v: bench.P50, color: "var(--hhg-yellow)" },
+        { label: "P70", v: bench.P70, color: "var(--hhg-amber)" },
+        { label: "P100", v: bench.P100, color: "var(--hhg-brick)" },
+      ]
+    : [];
+  const maxV = Math.max(1, ...bars.map((b) => b.v));
+  return (
+    <div className="benchbox">
+      <button className="chip" onClick={onRun} disabled={busy}>
+        {busy ? "benching…" : bench ? "⚡ bench it again" : "⚡ bench it now"}
+      </button>
+      {bench && (
+        <div className="benchbars">
+          {bars.map((b) => (
+            <div key={b.label} className="benchrow">
+              <span className="benchlab">{b.label}</span>
+              <div className="benchtrk">
+                <div
+                  className="benchfill"
+                  style={{ width: `${(b.v / maxV) * 100}%`, background: b.color, animation: "hhg-grow 0.8s ease both" }}
+                  title={`${b.v}ms`}
+                >
+                  <span>{b.v.toFixed(0)}ms</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          <p className="evalsub">
+            {bench.n} live queries · mean {bench.mean.toFixed(0)}ms · warm path
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

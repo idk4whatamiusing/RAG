@@ -143,6 +143,61 @@ async def bench():
         "mean": round(sum(lats) / n, 1), "queries": rows})
 
 
+# --- GOA-18 N1/N7: live memory — teach (INSERT) / unlearn (DELETE), zero rebuild ---
+
+def _rds_conn():
+    from src.sqlstore import rds_connection_factory
+    return rds_connection_factory()()
+
+
+@app.post("/remember")
+async def remember(req: Request):
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+    text = (body.get("text") or "").strip()
+    if not text or len(text) > 400:
+        return JSONResponse({"error": "bad text"}, status_code=400)
+    kb = body.get("kb") or "goa"
+    if kb not in ("goa", "docs"):
+        return JSONResponse({"error": "only goa/docs brains accept memory"}, status_code=400)
+    _load()
+    if not isinstance(_corpus, SqlCorpus):
+        return JSONResponse({"error": "live memory needs rds mode"}, status_code=500)
+    vec = _embedder.encode_one(text)
+    vec_str = "[" + ",".join(f"{v:.6g}" for v in vec) + "]"
+    conn = _corpus.parts[kb]._conn
+    with conn.cursor() as cur:
+        cur.execute("SELECT coalesce(max(doc), -1) FROM chunks WHERE lang = %s", (kb,))
+        doc = int(cur.fetchone()[0]) + 1
+        qid = f"live:{doc}"
+        meta = {"lang": kb, "qid": qid, "passage_idx": "mem", "chunk_id": 0,
+                "selected": 1, "query_type": "live", "strategy": "native", "remembered": True}
+        cur.execute("INSERT INTO chunks (lang, doc, text, meta, vec) VALUES (%s,%s,%s,%s,%s)",
+                    (kb, doc, text, json.dumps(meta, ensure_ascii=False), vec_str))
+    return JSONResponse({"ok": True, "qid": qid, "doc": doc})
+
+
+@app.post("/forget")
+async def forget(req: Request):
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+    qid = (body.get("qid") or "").strip()
+    if not qid:
+        return JSONResponse({"error": "missing qid"}, status_code=400)
+    _load()
+    if not isinstance(_corpus, SqlCorpus):
+        return JSONResponse({"error": "live memory needs rds mode"}, status_code=500)
+    conn = _rds_conn()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM chunks WHERE meta->>'qid' = %s", (qid,))
+        n = cur.rowcount
+    return JSONResponse({"ok": n > 0, "deleted": n})
+
+
 # --- TTS (GOA-16/17): tiered chain — ElevenLabs (paid) -> Sarvam AI (Indic-native) -> Edge (free) ---
 
 TTS_MODEL = os.environ.get("ELEVEN_TTS_MODEL", "eleven_flash_v2_5")

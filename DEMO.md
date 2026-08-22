@@ -2,38 +2,38 @@
 
 Live URL: https://15.206.175.100.sslip.io — deploy via SSM (ssh unreliable from CGNAT).
 
-Persona: **निशा · Goa desk** — ask in any Indic language, answer spoken back (Sarvam AI
-Indian voices when ElevenLabs is exhausted, Edge as the free umbrella). The Goa brain knows
-Goa; the main brain knows the MSMARCO-XI corpus; the bench brain can talk about itself.
+Persona: **निशा · Goa desk**. The arc: **"Nisha's living memory"** — she learns during the demo,
+forgets on command, and her memory is live on every device that opens the QR.
 
 ## 60-second flow
 
-1. **Open the page.** Greeting: "निशा बोलत नाही? बोला". Chips row = the fallback insurance.
-2. **Goa brain (the soul):** tap the `गोवा brain` selector, then ask out loud:
-   "गोवा का सबसे पुराना चर्च कौन सा है?"
-   - Answer comes from a hand-curated Goa corpus, cited, with the exact sentence highlighted.
-3. **Konkani moment:** tap `कोंकणी · कसो आसा?` — the answer explains the phrase, in Konkani text via the Goa brain. Nobody else has Konkani.
-4. **Cross-lingual flex (main brain):** tap `हिन्दी → தமிழ்` — a Hindi question answered in Tamil.
-   Watch the "answering in தமிழ்" badge + the Tamil voice (Sarvam ta-IN). Language badge flips live while you speak.
-5. **Barge-in:** while it's speaking, talk over it — it cuts and re-listens. Full duplex.
-6. **Guardrail:** "hello goa how are you?" → clean refusal, and the trace shows the math
-   (`answer-confidence = 0.0 < 0.28 → not-in-knowledge-base`).
-7. **Bench it now:** the `⚡ /bench` — actually, the chips row hosts it? No: bench is a server
-   endpoint behind the scenes; stage rings + HUD above the answer show lid/embed/retrieve/extract
-   live, and the voice→voice number shows speech-end → first audio (~400-700ms).
-8. **Receipts:** footer `evals →` opens the 13-lang × 4-strategy chunking table + P50/P70/P100.
-   Ask the bench brain "what is the tamil recall?" (docs brain) — it answers from its own eval doc.
-9. **Scan me:** QR → the live app on a judge's phone.
+1. **Open the page.** Greeting "निशा बोलत नाही? बोला". Note गोवा brain selector.
+2. **Goa brain:** ask "गोवा का सबसे पुराना चर्च कौन सा है?" → cited answer, exact sentence highlighted.
+3. **THE MOMENT — teach her:** type in the remember box:
+   `मोरजिम बीच पर हर साल ओलिव रिडले कछुओं का festival होता है` → **याद रखो**
+   → her tone: "याद रखा · live:172 · memory is live everywhere — teach here, ask on the phone"
+4. **Prove it by voice:** ask "मोरजिम में कछुए कब आते हैं?" → she answers **the fact you just taught her**,
+   cited `live:172` — a knowledge-base update with zero rebuild, live in front of the judges.
+5. **Unlearn:** tap 🧹 भूल जाओ → ask again → the taught fact is gone, corpus passage answers instead.
+   *"She forgets on command — machine unlearning, live."*
+6. **Konkani move:** chip `कोंकणी · कसो आसा?` (goa brain).
+7. **Cross-lingual flex:** chip `हिन्दी → தமிழ்` — Hindi question, Tamil answer + Tamil voice.
+8. **Full duplex:** talk over her while she speaks — she cuts and re-listens (headphones advised).
+9. **Guard theatre:** chip `guard: मुझे मारना है` → refusal + trace `toxic / blocklist` on screen.
+10. **Evaluation IS the demo:** ⚡ bench it now — live P50/P70/P100 bars on screen (warm ~15-70ms).
+11. **Nisha interviews YOU:** 🎤 निशा पूछती है — name → language → Goa place; she repeats it back.
+12. **Report card:** 🧾 report — spoken summary of the whole session: questions, languages, sources,
+    refusals, remembered/forgotten. The demo documents itself.
+13. **Phone follow-up:** 📱 scan me → judge asks the same "मोरजिम" question *after* you taught it live
+    (memory is in RDS, not the laptop).
 
-## Voice chain (no-code demo line)
-
-`X-TTS-Source` header shows the live tier: eleven → sarvam → edge. The ElevenLabs account is
-burned (402) so Sarvam AI bulbul:v3 (shubh) is the voice today — an Indian model speaking
-Indian answers. Top up ElevenLabs anytime → it silently upgrades.
+## Receipts on stage
+- Footer `evals →`: 13-lang × 4-strategy chunking table + bench P50/P70/P100.
+- Stage rings + HUD show lid/embed/retrieve/extract live ms; voice→voice number under the answer.
+- `X-TTS-Source` header: eleven → **sarvam** (active, Indian voice) → edge. Your Sarvam key is wired.
 
 ## Tips
-
-- Headphones for barge-in (browser AEC handles speaker bleed; headphones are bulletproof).
-- Warm the box first: hit /health once after any deploy, then /bench once (first call is cold).
-- Repeat queries hit the LRU /tts cache — instant, zero credits.
-- If the stage mic dies: all chips are pure HTTP.
+- Warm the box: after any deploy hit `/health`, then fire `/bench` once (first run cold).
+- Repeat /tts calls are LRU-cached — zero credits, instant.
+- Mic dies on stage? Every chip is pure HTTP and the remember box works without the mic.
+- The ledger bar (सवाल/भाषाएँ/स्रोत/refused/याद/भूल) grows through the whole demo — glance at it often.
