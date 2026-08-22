@@ -1,6 +1,6 @@
 # Demo script — निशा · वॉइस RAG (HH Goa 2026)
 
-Live URL: https://15.206.175.100.sslip.io — deploy via SSM (ssh unreliable from CGNAT).
+Live URL: https://meridian.dpdns.org — deploy via SSM (ssh unreliable from CGNAT).
 
 Persona: **निशा · Goa desk**. The arc: **"Nisha's living memory"** — she learns during the demo,
 forgets on command, and her memory is live on every device that opens the QR.
